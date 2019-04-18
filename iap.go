@@ -25,7 +25,6 @@ const (
 
 // IAP represents the information needed to access IAP-protected app
 type IAP struct {
-	SA string
 	ID string
 }
 

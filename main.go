@@ -138,6 +138,7 @@ func main() {
 			fmt.Println(err)
 			return
 		}
+		fmt.Printf("Credentials saved to keyring. Please delete %s \n", *credentials)
 		return
 	}
 
