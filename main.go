@@ -77,7 +77,7 @@ func (p *proxy) ServeHTTP(wr http.ResponseWriter, req *http.Request) {
 		appendHostToXForwardHeader(req.Header, clientIP)
 	}
 
-	//request to IAP Proxy
+	//Request to IAP Proxy
 	resp, err := client.Do(req)
 	if err != nil {
 		http.Error(wr, "Server Error", http.StatusInternalServerError)
@@ -96,11 +96,11 @@ func (p *proxy) ServeHTTP(wr http.ResponseWriter, req *http.Request) {
 
 func main() {
 
-	// cred := os.Getenv("GOOGLE_APPLICATION_CREDENTIALS")
+	cred := os.Getenv("GOOGLE_APPLICATION_CREDENTIALS")
 	clientID := os.Getenv("IAP_CLIENT_ID")
 	iapHOSTENV := os.Getenv("IAP_HOST")
 
-	//service behind IAP proxy (eg. iqlusion validator)
+	//Service behind IAP Proxy (eg. iqlusion validator)
 	iapHostURL, err := url.Parse(iapHOSTENV)
 
 	if err != nil {
@@ -109,13 +109,9 @@ func main() {
 	}
 
 	var addr = flag.String("addr", "127.0.0.1:8080", "The addr of the application.")
-	//path to credentials file
-
-	//kristi
+	//Path to credentials file
 	var credentials = flag.String("cred", "", "SA")
-
 	flag.Parse()
-	fmt.Println(*credentials)
 
 	// If the user passed an argument, read the file
 	if *credentials != "" {
@@ -127,7 +123,7 @@ func main() {
 
 		//Determining the operating system
 		ring, err := keyring.Open(keyring.Config{
-			//folder with encrypted secret data
+			//Folder with encrypted data
 			ServiceName: "IAP_Proxy",
 		})
 		if err != nil {
