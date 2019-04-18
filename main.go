@@ -95,8 +95,6 @@ func (p *proxy) ServeHTTP(wr http.ResponseWriter, req *http.Request) {
 }
 
 func main() {
-
-	cred := os.Getenv("GOOGLE_APPLICATION_CREDENTIALS")
 	clientID := os.Getenv("IAP_CLIENT_ID")
 	iapHOSTENV := os.Getenv("IAP_HOST")
 
