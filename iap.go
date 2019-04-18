@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/99designs/keyring"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	"golang.org/x/oauth2/jws"
@@ -28,29 +29,35 @@ type IAP struct {
 	ID string
 }
 
-func newIAP(sa, id string) (*IAP, error) {
-	if sa == "" {
-		return &IAP{}, errors.New("Service Account is missing")
-	}
+func newIAP(id string) (*IAP, error) {
+
 	if id == "" {
 		return &IAP{}, errors.New("Client ID is missing")
 	}
 	return &IAP{
-		SA: sa,
 		ID: id,
 	}, nil
 }
 
 // GetToken returns JWT token for authz
 func (c *IAP) GetToken() (token string, err error) {
-	sa, err := ioutil.ReadFile(c.SA)
+
+	ring, _ := keyring.Open(keyring.Config{
+		//Folder with Encrypted secret data
+		ServiceName: "IAP_Proxy",
+	})
+
+	sa, err := ring.Get("Proxy_Credentials")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	conf, err := google.JWTConfigFromJSON(sa.Data)
 	if err != nil {
 		return
 	}
-	conf, err := google.JWTConfigFromJSON(sa)
-	if err != nil {
-		return
-	}
+	//Private Key grants access to Google service account
 	rsaKey, _ := readRsaPrivateKey(conf.PrivateKey)
 	iat := time.Now()
 	exp := iat.Add(time.Hour)
@@ -78,6 +85,7 @@ func (c *IAP) GetToken() (token string, err error) {
 	v.Set("assertion", msg)
 
 	ctx := context.Background()
+	//Oauth allows to retrieve  temp token from Google
 	hc := oauth2.NewClient(ctx, nil)
 	resp, err := hc.PostForm(TokenURI, v)
 	if err != nil {

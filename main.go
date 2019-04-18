@@ -4,12 +4,15 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
 	"net/url"
 	"os"
 	"strings"
+
+	"github.com/99designs/keyring"
 )
 
 // Hop-by-hop headers. These are removed when sent to the backend.
@@ -65,6 +68,7 @@ func (p *proxy) ServeHTTP(wr http.ResponseWriter, req *http.Request) {
 	req.URL.Host = p.host.Host
 	req.URL.Scheme = p.host.Scheme
 
+	//Attching token to http request
 	req.Header.Add("Authorization", "Bearer "+p.authToken)
 
 	delHopHeaders(req.Header)
@@ -73,6 +77,7 @@ func (p *proxy) ServeHTTP(wr http.ResponseWriter, req *http.Request) {
 		appendHostToXForwardHeader(req.Header, clientIP)
 	}
 
+	//request to IAP Proxy
 	resp, err := client.Do(req)
 	if err != nil {
 		http.Error(wr, "Server Error", http.StatusInternalServerError)
@@ -91,10 +96,11 @@ func (p *proxy) ServeHTTP(wr http.ResponseWriter, req *http.Request) {
 
 func main() {
 
-	cred := os.Getenv("GOOGLE_APPLICATION_CREDENTIALS")
+	// cred := os.Getenv("GOOGLE_APPLICATION_CREDENTIALS")
 	clientID := os.Getenv("IAP_CLIENT_ID")
 	iapHOSTENV := os.Getenv("IAP_HOST")
 
+	//service behind IAP proxy (eg. iqlusion validator)
 	iapHostURL, err := url.Parse(iapHOSTENV)
 
 	if err != nil {
@@ -102,7 +108,47 @@ func main() {
 		return
 	}
 
-	iap, err := newIAP(cred, clientID)
+	var addr = flag.String("addr", "127.0.0.1:8080", "The addr of the application.")
+	//path to credentials file
+
+	//kristi
+	var credentials = flag.String("cred", "", "SA")
+
+	flag.Parse()
+	fmt.Println(*credentials)
+
+	// If the user passed an argument, read the file
+	if *credentials != "" {
+		sa, err := ioutil.ReadFile(*credentials)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+
+		//Determining the operating system
+		ring, err := keyring.Open(keyring.Config{
+			//folder with encrypted secret data
+			ServiceName: "IAP_Proxy",
+		})
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+
+		//Adding Proxy_Credentials in the folder where data is sa
+		err = ring.Set(keyring.Item{
+			Key:  "Proxy_Credentials",
+			Data: sa,
+		})
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		return
+	}
+
+	//Brought in from iap.go file
+	iap, err := newIAP(clientID)
 
 	if err != nil {
 		fmt.Println(err)
@@ -115,9 +161,6 @@ func main() {
 		fmt.Println(err)
 		return
 	}
-
-	var addr = flag.String("addr", "127.0.0.1:8080", "The addr of the application.")
-	flag.Parse()
 
 	handler := &proxy{token, *iapHostURL}
 
