@@ -12,7 +12,6 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/99designs/keyring"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	"golang.org/x/oauth2/jws"
@@ -25,34 +24,30 @@ const (
 
 // IAP represents the information needed to access IAP-protected app
 type IAP struct {
-	ID string
+	ID             string
+	ServiceAccount []byte
 }
 
 func newIAP(id string) (*IAP, error) {
 
+	sa, err := ring.Get("Proxy_Credentials")
+	if err != nil {
+		return nil, err
+	}
+
 	if id == "" {
-		return &IAP{}, errors.New("Client ID is missing")
+		return nil, errors.New("Client ID is missing")
 	}
 	return &IAP{
-		ID: id,
+		ID:             id,
+		ServiceAccount: sa.Data,
 	}, nil
 }
 
 // GetToken returns JWT token for authz
 func (c *IAP) GetToken() (token string, err error) {
 
-	ring, _ := keyring.Open(keyring.Config{
-		//Folder with Encrypted secret data
-		ServiceName: "IAP_Proxy",
-	})
-
-	sa, err := ring.Get("Proxy_Credentials")
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-
-	conf, err := google.JWTConfigFromJSON(sa.Data)
+	conf, err := google.JWTConfigFromJSON(c.ServiceAccount)
 	if err != nil {
 		return
 	}

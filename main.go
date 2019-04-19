@@ -28,6 +28,11 @@ var hopHeaders = []string{
 	"Upgrade",
 }
 
+var ring, initRingErr = keyring.Open(keyring.Config{
+	//Keyring with encrypted application data
+	ServiceName: "IAP_Proxy",
+})
+
 func copyHeader(dst, src http.Header) {
 	for k, vv := range src {
 		for _, v := range vv {
@@ -95,6 +100,12 @@ func (p *proxy) ServeHTTP(wr http.ResponseWriter, req *http.Request) {
 }
 
 func main() {
+
+	if initRingErr != nil {
+		fmt.Printf("Error initialize key ring: %s", initRingErr.Error())
+		return
+	}
+
 	clientID := os.Getenv("IAP_CLIENT_ID")
 	iapHOSTENV := os.Getenv("IAP_HOST")
 
@@ -108,7 +119,7 @@ func main() {
 
 	var addr = flag.String("addr", "127.0.0.1:8080", "The addr of the application.")
 	//Path to credentials file
-	var credentials = flag.String("cred", "", "SA")
+	var credentials = flag.String("cred", "", "Path to Service Account Web Token")
 	flag.Parse()
 
 	// If the user passed an argument, read the file
@@ -119,17 +130,7 @@ func main() {
 			return
 		}
 
-		//Determining the operating system
-		ring, err := keyring.Open(keyring.Config{
-			//Folder with encrypted data
-			ServiceName: "IAP_Proxy",
-		})
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-
-		//Adding Proxy_Credentials in the folder where data is sa
+		//Adding Proxy_Credentials in the keyring where data is sa
 		err = ring.Set(keyring.Item{
 			Key:  "Proxy_Credentials",
 			Data: sa,
