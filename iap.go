@@ -24,33 +24,34 @@ const (
 
 // IAP represents the information needed to access IAP-protected app
 type IAP struct {
-	SA string
-	ID string
+	ID             string
+	ServiceAccount []byte
 }
 
-func newIAP(sa, id string) (*IAP, error) {
-	if sa == "" {
-		return &IAP{}, errors.New("Service Account is missing")
+func newIAP(id string) (*IAP, error) {
+
+	sa, err := ring.Get("Proxy_Credentials")
+	if err != nil {
+		return nil, err
 	}
+
 	if id == "" {
-		return &IAP{}, errors.New("Client ID is missing")
+		return nil, errors.New("Client ID is missing")
 	}
 	return &IAP{
-		SA: sa,
-		ID: id,
+		ID:             id,
+		ServiceAccount: sa.Data,
 	}, nil
 }
 
 // GetToken returns JWT token for authz
 func (c *IAP) GetToken() (token string, err error) {
-	sa, err := ioutil.ReadFile(c.SA)
+
+	conf, err := google.JWTConfigFromJSON(c.ServiceAccount)
 	if err != nil {
 		return
 	}
-	conf, err := google.JWTConfigFromJSON(sa)
-	if err != nil {
-		return
-	}
+	//Private Key grants access to Google service account
 	rsaKey, _ := readRsaPrivateKey(conf.PrivateKey)
 	iat := time.Now()
 	exp := iat.Add(time.Hour)
@@ -78,6 +79,7 @@ func (c *IAP) GetToken() (token string, err error) {
 	v.Set("assertion", msg)
 
 	ctx := context.Background()
+	//Oauth allows to retrieve  temp token from Google
 	hc := oauth2.NewClient(ctx, nil)
 	resp, err := hc.PostForm(TokenURI, v)
 	if err != nil {

@@ -5,6 +5,8 @@ This is a proxy server designed to be run locally for accessing resources behind
 
 You must set three environment variables.
 
-1. `export GOOGLE_APPLICATION_CREDENTIALS="path to your service account json"`
 2. `export IAP_CLIENT_ID="client id"` see https://cloud.google.com/iap/docs/authentication-howto
 3. `export IAP_HOST ="URL_IAP_SERVICE"`
+
+
+If you are using the program for the first time, start the program `iap_proxy --cred <path to google service account JWT>` this will save the service account in local keyring and prompt you to delete it.

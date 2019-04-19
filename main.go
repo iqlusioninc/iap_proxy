@@ -4,12 +4,15 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
 	"net/url"
 	"os"
 	"strings"
+
+	"github.com/99designs/keyring"
 )
 
 // Hop-by-hop headers. These are removed when sent to the backend.
@@ -24,6 +27,11 @@ var hopHeaders = []string{
 	"Transfer-Encoding",
 	"Upgrade",
 }
+
+var ring, initRingErr = keyring.Open(keyring.Config{
+	//Keyring with encrypted application data
+	ServiceName: "IAP_Proxy",
+})
 
 func copyHeader(dst, src http.Header) {
 	for k, vv := range src {
@@ -65,6 +73,7 @@ func (p *proxy) ServeHTTP(wr http.ResponseWriter, req *http.Request) {
 	req.URL.Host = p.host.Host
 	req.URL.Scheme = p.host.Scheme
 
+	//Attching token to http request
 	req.Header.Add("Authorization", "Bearer "+p.authToken)
 
 	delHopHeaders(req.Header)
@@ -73,6 +82,7 @@ func (p *proxy) ServeHTTP(wr http.ResponseWriter, req *http.Request) {
 		appendHostToXForwardHeader(req.Header, clientIP)
 	}
 
+	//Request to IAP Proxy
 	resp, err := client.Do(req)
 	if err != nil {
 		http.Error(wr, "Server Error", http.StatusInternalServerError)
@@ -91,10 +101,15 @@ func (p *proxy) ServeHTTP(wr http.ResponseWriter, req *http.Request) {
 
 func main() {
 
-	cred := os.Getenv("GOOGLE_APPLICATION_CREDENTIALS")
+	if initRingErr != nil {
+		fmt.Printf("Error initialize key ring: %s", initRingErr.Error())
+		return
+	}
+
 	clientID := os.Getenv("IAP_CLIENT_ID")
 	iapHOSTENV := os.Getenv("IAP_HOST")
 
+	//Service behind IAP Proxy (eg. iqlusion validator)
 	iapHostURL, err := url.Parse(iapHOSTENV)
 
 	if err != nil {
@@ -102,7 +117,34 @@ func main() {
 		return
 	}
 
-	iap, err := newIAP(cred, clientID)
+	var addr = flag.String("addr", "127.0.0.1:8080", "The addr of the application.")
+	//Path to credentials file
+	var credentials = flag.String("cred", "", "Path to Service Account Web Token")
+	flag.Parse()
+
+	// If the user passed an argument, read the file
+	if *credentials != "" {
+		sa, err := ioutil.ReadFile(*credentials)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+
+		//Adding Proxy_Credentials in the keyring where data is sa
+		err = ring.Set(keyring.Item{
+			Key:  "Proxy_Credentials",
+			Data: sa,
+		})
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		fmt.Printf("Credentials saved to keyring. Please delete %s \n", *credentials)
+		return
+	}
+
+	//Brought in from iap.go file
+	iap, err := newIAP(clientID)
 
 	if err != nil {
 		fmt.Println(err)
@@ -115,9 +157,6 @@ func main() {
 		fmt.Println(err)
 		return
 	}
-
-	var addr = flag.String("addr", "127.0.0.1:8080", "The addr of the application.")
-	flag.Parse()
 
 	handler := &proxy{token, *iapHostURL}
 
